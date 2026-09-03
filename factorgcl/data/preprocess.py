@@ -20,9 +20,10 @@
 from __future__ import annotations
 
 import warnings
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -211,7 +212,9 @@ class SampleBuilder:
     years never has to be materialised as sequences.
     """
 
-    def __init__(self, panel: MarketPanel, config: DataConfig) -> None:
+    def __init__(
+        self, panel: MarketPanel, config: DataConfig, label_cache_size: int = 64
+    ) -> None:
         self.panel = panel
         self.config = config
 
@@ -222,7 +225,10 @@ class SampleBuilder:
         self.label_price_index = panel.field(config.label_price_field)
         self.num_prior_factors = max(config.num_prior_factors, panel.num_industries)
 
-        self._label_cache: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
+        # small LRU so that is_usable() and build() on the same day share the
+        # label computation without pinning a whole decade of labels in memory
+        self._label_cache: "OrderedDict[int, Tuple[np.ndarray, np.ndarray]]" = OrderedDict()
+        self._label_cache_size = label_cache_size
 
     # ------------------------------------------------------------------
     @property
@@ -255,6 +261,7 @@ class SampleBuilder:
     def _standardised_labels(self, date_index: int) -> Tuple[np.ndarray, np.ndarray]:
         """Cross-sectionally standardised labels and the raw returns they come from."""
         if date_index in self._label_cache:
+            self._label_cache.move_to_end(date_index)
             return self._label_cache[date_index]
 
         raw = self._raw_labels(date_index)
@@ -271,6 +278,8 @@ class SampleBuilder:
             standardised[finite, k] = (column[finite] - mean) / std
         np.clip(standardised, -self.config.label_clip, self.config.label_clip, out=standardised)
         self._label_cache[date_index] = (standardised, raw)
+        while len(self._label_cache) > self._label_cache_size:
+            self._label_cache.popitem(last=False)
         return standardised, raw
 
     # ------------------------------------------------------------------

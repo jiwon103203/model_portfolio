@@ -81,8 +81,12 @@ def test_disabling_the_contrastive_loss_zeroes_that_term(panel):
         panel, config.data, [("2014-01-01", "2015-06-30"), ("2015-07-01", "2015-07-31"), ("2015-08-01", "2015-08-31")]
     )
     trainer = Trainer(build_model(config.model, seed=0), config.train, config.data)
-    trainer.fit(train_set, None)
+    stats = trainer.fit(train_set, None)
     assert all(record["contrastive"] == 0.0 for record in trainer.history)
+    # without a validation set there is nothing to early-stop on: the last
+    # epoch is kept and no IC is reported
+    assert stats["best_epoch"] == config.train.max_epochs - 1
+    assert np.isnan(stats["best_valid_ic"])
 
 
 def test_backtest_runs_on_model_predictions(panel):

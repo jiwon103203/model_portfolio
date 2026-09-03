@@ -237,14 +237,19 @@ class Trainer:
 
         stopper = EarlyStopping(patience=self.config.early_stopping_patience, mode="max")
         best_state = copy.deepcopy(self.model.state_dict())
+        last_epoch = -1
 
         for epoch in range(self.config.max_epochs):
             train_stats = self.train_epoch(train_loader)
             record = {"epoch": float(epoch), **train_stats}
 
             if valid_loader is None:
-                # without a validation set, keep the last epoch
+                # without a validation set there is nothing to early-stop on,
+                # so the last epoch is kept
                 best_state = copy.deepcopy(self.model.state_dict())
+                if checkpoint_path is not None:
+                    torch.save(best_state, checkpoint_path)
+                last_epoch = epoch
                 self.history.append(record)
                 if self.config.verbose:
                     self._log(record)
@@ -278,6 +283,8 @@ class Trainer:
                 break
 
         self.model.load_state_dict(best_state)
+        if valid_loader is None:
+            return {"best_epoch": float(last_epoch), "best_valid_ic": float("nan")}
         return {"best_epoch": float(stopper.best_epoch), "best_valid_ic": float(stopper.best_score)}
 
     @staticmethod

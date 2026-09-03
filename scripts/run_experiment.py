@@ -58,6 +58,12 @@ def build_config(args: argparse.Namespace, panel: MarketPanel) -> ExperimentConf
     config.train.device = args.device
     config.backtest.top_k = args.top_k
     config.backtest.holding_days = args.holding_days
+    config.rolling.train_years = args.rolling_train_years
+    config.rolling.valid_years = args.rolling_valid_years
+    config.rolling.test_years = args.rolling_test_years
+    config.rolling.step_years = args.rolling_test_years
+    if args.rolling and args.test_range is not None:
+        config.rolling.test_start, config.rolling.test_end = args.test_range
 
     overrides = dict(ABLATIONS[args.ablation])
     if overrides.pop("_no_cl", False):
@@ -71,6 +77,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--panel", type=Path, required=True, help="npz written by make_synthetic_data.py")
     parser.add_argument("--rolling", action="store_true", help="use the paper's rolling protocol")
+    parser.add_argument("--rolling-train-years", type=int, default=5)
+    parser.add_argument("--rolling-valid-years", type=int, default=1)
+    parser.add_argument("--rolling-test-years", type=int, default=2)
     parser.add_argument("--ablation", choices=sorted(ABLATIONS), default="full")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--hidden-dim", type=int, default=32)
@@ -82,7 +91,14 @@ def main() -> None:
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--train-range", nargs=2, metavar=("START", "END"), default=None)
     parser.add_argument("--valid-range", nargs=2, metavar=("START", "END"), default=None)
-    parser.add_argument("--test-range", nargs=2, metavar=("START", "END"), default=None)
+    parser.add_argument(
+        "--test-range",
+        nargs=2,
+        metavar=("START", "END"),
+        default=None,
+        help="single split: the test window. With --rolling: the overall test span "
+        "the rolling windows must tile.",
+    )
     parser.add_argument("--out", type=Path, default=Path("outputs"))
     args = parser.parse_args()
 

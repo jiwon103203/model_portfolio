@@ -90,7 +90,7 @@ scripts/
 ├── make_synthetic_data.py
 ├── run_experiment.py      # train → evaluate → backtest
 └── run_ablation.py        # Table 2
-tests/                     # 63 tests, incl. formula-level checks against the paper
+tests/                     # 65 tests, incl. formula-level checks against the paper
 ```
 
 ---
