@@ -277,6 +277,53 @@ The suite checks the implementation against the equations, not just the shapes:
 
 ---
 
+## What was verified, and what was not
+
+Beyond the unit tests, the ablation of Table 2 was run on a synthetic panel
+(150 stocks, 2 years train / 1 year valid / 2 years test, 25 epochs, M=16),
+via `scripts/run_ablation.py`:
+
+|              | IC Δt=1 | IC Δt=5 | IC Δt=10 | IC Δt=20 |
+|--------------|---------|---------|----------|----------|
+| −wo Prior    | 0.2553  | 0.1735  | 0.1061   | 0.0636   |
+| −wo Hidden   | 0.2676  | 0.1752  | 0.0981   | 0.0604   |
+| −wo Alpha&CL | 0.2882  | 0.1956  | **0.1258** | **0.0844** |
+| −wo CL       | **0.2896** | **0.1970** | 0.1219 | 0.0824   |
+| **FactorGCL**| 0.2856  | 0.1957  | 0.1223   | 0.0740   |
+
+**Reproduced: the cascading residual hypergraph.** Removing either beta module
+costs about 0.03 IC at Δt=1 and hurts at every horizon, so both the prior and
+the hidden hypergraph carry real signal.
+
+**Not reproduced: the contrastive learning term.** `−wo CL` edges out the full
+model at every horizon, whereas in the paper FactorGCL wins all four. This is a
+result on synthetic data, not a refutation of the paper — but it is stated here
+rather than omitted.
+
+The contrastive machinery itself is wired correctly and is being optimised: the
+loss falls from ~5.1 to ~2.6 during training, `test_info_nce_matches_equation_11`
+checks it against a literal transcription of Eq. (11),
+`test_future_branch_reuses_historical_exposures` checks the Eq. (10) wiring, and
+gradients reach the hidden factor prototypes and both HyperGCN weights. Two
+likely explanations for it not helping here:
+
+1. **The synthetic market's signal-to-noise ratio is too high.** The paper
+   motivates contrastive learning precisely by the "low signal-to-noise ratio in
+   market data" causing factors to overfit noise. With little noise to overfit,
+   the term is a pure regularisation cost. The synthetic idiosyncratic return is
+   also an AR(1) process, so the premise the loss enforces — that a stock's alpha
+   is temporally consistent — already holds trivially and adds no information.
+   Raise `SyntheticConfig.noise_vol` to test this.
+2. **The separate future encoder may open a shortcut.** With
+   `share_feature_extractor=False` (the default, and the reading the paper's text
+   implies), φ'_feat is free to make `e'_α` match `e_α` without constraining the
+   beta modules much. Set `share_feature_extractor=True` to test this.
+
+Scale differs sharply too: the paper trains on 5028 stocks over 5 years for 100
+epochs; this run used 150 stocks over 2 years for 25.
+
+---
+
 ## A note on reproducing the paper's numbers
 
 The reported results use a proprietary China A-share dataset (5028 stocks,
