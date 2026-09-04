@@ -117,20 +117,31 @@ python scripts/run_ablation.py --panel data/synthetic_panel.npz
 As a library:
 
 ```python
-from factorgcl import ExperimentConfig, Trainer, build_model, split_by_date, backtest_predictions
-from factorgcl.data import MarketPanel
+from factorgcl import (
+    ExperimentConfig, MarketPanel, Trainer,
+    backtest_predictions, build_dataloader, build_model, format_metrics_table, split_by_date,
+)
 
 panel  = MarketPanel.load("data/synthetic_panel.npz")
-config = ExperimentConfig().sync()
+
+config = ExperimentConfig()
+config.data.num_prior_factors = panel.num_industries   # K hyperedges of the prior hypergraph
+config.sync()                                          # propagate D, L, K into the model config
 
 train, valid, test = split_by_date(panel, config.data,
     [("2014-01-01", "2018-12-31"), ("2019-01-01", "2019-12-31"), ("2020-01-01", "2021-12-31")])
 
-trainer = Trainer(build_model(config.model, seed=0), config.train, config.data)
+trainer = Trainer(build_model(config.model, seed=config.train.seed), config.train, config.data)
 trainer.fit(train, valid)
 
 metrics, predictions = trainer.evaluate(build_dataloader(test))
-result = backtest_predictions(predictions, panel, config.backtest)
+print(format_metrics_table(metrics))
+
+result = backtest_predictions(
+    predictions, panel, config.backtest, forward_periods=config.data.forward_periods
+)
+print(result)                       # AR | IR | RoMaD | MaxDD | CR | CER
+predictions.hidden_exposure[0]      # the mined beta_h of the first test day, (N, M)
 ```
 
 ---
