@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# experiment artifacts (anchored, so factorgcl/data/ is still tracked)
+/data/
+/outputs/
+*.npz
+*.pt
